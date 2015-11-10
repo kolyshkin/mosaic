@@ -1,4 +1,4 @@
-#GOTAGS=-tags test_build
+GOTAGS=-tags test_build
 
 all:
 	go build $(GOTAGS) .
