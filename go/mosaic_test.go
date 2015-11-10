@@ -119,3 +119,34 @@ func TestMosaicMountUmount(t *testing.T) {
 		testMosaicMountUmount(t, drv)
 	}
 }
+
+func bstr(b bool) string {
+	if b {
+		return "YES"
+	}
+	return "no "
+}
+
+func testMosaicFeatures(t *testing.T, drv string) {
+	mosfile := mosPrepare(drv)
+
+	m, err := Open(mosfile, 0)
+	chk(err)
+
+	res := fmt.Sprintf("%s features: 0x%x (", drv, m.Features())
+	res += fmt.Sprintf(" clone: %s ", bstr(m.CanClone()))
+	res += fmt.Sprintf(" size: %s ", bstr(m.CanManageSize()))
+	res += fmt.Sprintf(" bdev: %s ", bstr(m.CanBlockDev()))
+	res += fmt.Sprintf(" migrate: %s ", bstr(m.CanMigrate()))
+	res += ")"
+	t.Logf(res)
+
+	m.Close()
+	dirCleanup()
+}
+
+func TestMosaicFeatures(t *testing.T) {
+	for _, drv := range drivers {
+		testMosaicFeatures(t, drv)
+	}
+}
