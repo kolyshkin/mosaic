@@ -29,12 +29,12 @@ func Open(name string, flags int) (m Mosaic, e error) {
 }
 
 // Close closes a mosaic
-func (m *Mosaic) Close() {
+func (m Mosaic) Close() {
 	C.mosaic_close(m.m)
 }
 
 // Mount mounts a mosaic
-func (m *Mosaic) Mount(path string, flags int) error {
+func (m Mosaic) Mount(path string, flags int) error {
 	cpath := C.CString(path)
 	defer cfree(cpath)
 
@@ -47,6 +47,6 @@ func (m *Mosaic) Mount(path string, flags int) error {
 }
 
 // Umount umounts a mosaic
-func (m *Mosaic) Umount(path string) error {
+func (m Mosaic) Umount(path string) error {
 	return syscall.Unmount(path, 0)
 }
