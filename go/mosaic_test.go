@@ -27,7 +27,7 @@ func abort(format string, args ...interface{}) {
 	f := bufio.NewWriter(os.Stderr)
 	f.Write([]byte(s))
 	f.Flush()
-	cleanup()
+	dirCleanup()
 	os.Exit(1)
 }
 
@@ -38,7 +38,7 @@ func chk(err error) {
 	}
 }
 
-func prepare(dir string) {
+func dirPrepare(dir string) {
 	var err error
 
 	oldPwd, err = os.Getwd()
@@ -51,7 +51,7 @@ func prepare(dir string) {
 	chk(err)
 }
 
-func cleanup() {
+func dirCleanup() {
 	if oldPwd != "" {
 		os.Chdir(oldPwd)
 	}
@@ -60,10 +60,9 @@ func cleanup() {
 	}
 }
 
-func testMosaicMountUmount(t *testing.T, drv string) {
-	prepare("tmp-test-" + drv)
+func mosPrepare(drv string) string {
+	dirPrepare("tmp-test-" + drv)
 
-	t.Logf("Mosaic mount/umount test for %s", drv)
 	dir := drv + ".dir"
 	err := os.Mkdir(dir, 0755)
 	chk(err)
@@ -73,8 +72,15 @@ func testMosaicMountUmount(t *testing.T, drv string) {
 	err = ioutil.WriteFile(mosfile, contents, 0644)
 	chk(err)
 
+	return mosfile
+}
+
+func testMosaicMountUmount(t *testing.T, drv string) {
+	t.Logf("Mosaic mount/umount test for %s", drv)
+	mosfile := mosPrepare(drv)
+
 	mntdir := "mmnt"
-	err = os.Mkdir(mntdir, 0755)
+	err := os.Mkdir(mntdir, 0755)
 	chk(err)
 
 	m, err := Open(mosfile, 0)
@@ -105,7 +111,7 @@ func testMosaicMountUmount(t *testing.T, drv string) {
 	err = m.Umount(mntdir)
 	chk(err)
 
-	cleanup()
+	dirCleanup()
 }
 
 func TestMosaicMountUmount(t *testing.T) {
