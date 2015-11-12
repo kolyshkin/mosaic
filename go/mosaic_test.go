@@ -207,3 +207,77 @@ func TestMosaicFeatures(t *testing.T) {
 		testMosaicFeatures(t, drv)
 	}
 }
+
+func testVolumeMountUmount(t *testing.T, drv string) {
+	vol := "test_vol"
+	var size uint64 = 1024 * 1024 // 512MB in 512-byte blocks
+	mosfile, err := mosPrepare(drv)
+	if isSkipErr(err) {
+		// skip the test for this driver
+		t.Logf("SKIP %s: %s", drv, err)
+		return
+	}
+	chk(err)
+	defer mosCleanup(drv)
+
+	m, err := Open(mosfile, 0)
+	chk(err)
+	defer m.Close()
+
+	have, err := m.HaveVol(vol, 0)
+	chk(err)
+	if have {
+		t.Fatalf("HaveVol unexpectedly returned true")
+	}
+
+	err = m.CreateVol(vol, size, 0, true)
+	chk(err)
+
+	have, err = m.HaveVol(vol, 0)
+	chk(err)
+	if !have {
+		t.Fatalf("HaveVol unexpectedly returned false")
+	}
+
+	v, err := m.OpenVol(vol, 0)
+	chk(err)
+	defer v.Close()
+
+	mntdir := "vol_mnt"
+	err = os.Mkdir(mntdir, 0755)
+	chk(err)
+
+	err = v.Mount(mntdir, 0)
+	chk(err)
+	defer v.Umount(mntdir, 0)
+
+	tmpfile := mntdir + "/tfile"
+	err = ioutil.WriteFile(tmpfile, []byte("test"), 0644)
+	chk(err)
+
+	err = v.Umount(mntdir, 0)
+	chk(err)
+
+	_, err = ioutil.ReadFile(tmpfile)
+	// expecting ENOENT
+	if err == nil || !os.IsNotExist(err) {
+		t.Fatalf("Unexpectedly found %s: %s", tmpfile, err)
+	}
+
+	err = v.Mount(mntdir, 0)
+	chk(err)
+
+	os.Remove(tmpfile)
+
+	err = v.Umount(mntdir, 0)
+	chk(err)
+
+	err = v.Drop(0)
+	chk(err)
+}
+
+func TestVolumeMountUmount(t *testing.T) {
+	for _, drv := range drivers {
+		testVolumeMountUmount(t, drv)
+	}
+}

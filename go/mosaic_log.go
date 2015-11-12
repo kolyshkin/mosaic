@@ -55,3 +55,11 @@ func init() {
 func lastError() error {
 	return errors.New(strings.TrimRight(C.GoString(C.buf()), "\n"))
 }
+
+func condErr(ret C.int) error {
+	if ret == 0 {
+		return nil
+	}
+
+	return lastError()
+}
