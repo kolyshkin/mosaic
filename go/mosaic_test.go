@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"syscall"
 	"testing"
 )
 
@@ -60,34 +62,89 @@ func dirCleanup() {
 	}
 }
 
-func mosPrepare(drv string) string {
+type skipErr struct {
+}
+
+func (e *skipErr) Error() string {
+	return "driver not supported"
+}
+
+func isSkipErr(e error) bool {
+	_, ok := e.(*skipErr)
+	return ok
+}
+
+func runDriverShellFn(drv, fn string) (string, error) {
+	mosfile := "./" + drv + ".mos"
+	script := "../../test/" + drv + ".sh"
+
+	cmd := exec.Command("bash", "-c", "source "+script+"; "+fn)
+	//	cmd.Stdout = os.Stdout // be verbose
+	cmd.Stderr = os.Stderr // always show errors
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("MOS_FILE=%s", mosfile))
+	cmd.Env = env
+
+	err := cmd.Run()
+
+	if err == nil {
+		return mosfile, nil
+	}
+
+	// Check for a specific exit code of 22 (meaning "driver not supported")
+
+	// Get the exit code (Unix-specific)
+	if exiterr, ok := err.(*exec.ExitError); ok {
+		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+			errCode := status.ExitStatus()
+			if errCode == 22 {
+				return mosfile, &skipErr{}
+			}
+		}
+	}
+
+	return "", err
+}
+
+func mosPrepare(drv string) (s string, e error) {
 	dirPrepare("tmp-test-" + drv)
 
-	dir := drv + ".dir"
-	err := os.Mkdir(dir, 0755)
-	chk(err)
+	s, e = runDriverShellFn(drv, "prepare")
+	if e != nil {
+		dirCleanup()
+	}
 
-	mosfile := "./" + drv + ".mos"
-	contents := []byte("type: " + drv + "\nlocation: " + dir + "\n")
-	err = ioutil.WriteFile(mosfile, contents, 0644)
-	chk(err)
+	return
+}
 
-	return mosfile
+func mosCleanup(drv string) {
+	runDriverShellFn(drv, "cleanup")
+	dirCleanup()
 }
 
 func testMosaicMountUmount(t *testing.T, drv string) {
 	t.Logf("Mosaic mount/umount test for %s", drv)
-	mosfile := mosPrepare(drv)
+
+	mosfile, err := mosPrepare(drv)
+	if isSkipErr(err) {
+		// skip the test for this driver
+		t.Logf("SKIP %s: %s", drv, err)
+		return
+	}
+	chk(err)
+	defer mosCleanup(drv)
 
 	mntdir := "mmnt"
-	err := os.Mkdir(mntdir, 0755)
+	err = os.Mkdir(mntdir, 0755)
 	chk(err)
 
 	m, err := Open(mosfile, 0)
 	chk(err)
+	defer m.Close()
 
 	err = m.Mount(mntdir, 0)
 	chk(err)
+	defer m.Umount(mntdir)
 
 	tmpfile := mntdir + "/tfile"
 	err = ioutil.WriteFile(tmpfile, []byte("test"), 0644)
@@ -107,11 +164,6 @@ func testMosaicMountUmount(t *testing.T, drv string) {
 
 	err = os.Remove(tmpfile)
 	chk(err)
-
-	err = m.Umount(mntdir)
-	chk(err)
-
-	dirCleanup()
 }
 
 func TestMosaicMountUmount(t *testing.T) {
@@ -128,10 +180,18 @@ func bstr(b bool) string {
 }
 
 func testMosaicFeatures(t *testing.T, drv string) {
-	mosfile := mosPrepare(drv)
+	mosfile, err := mosPrepare(drv)
+	if isSkipErr(err) {
+		// skip the test for this driver
+		t.Logf("SKIP %s: %s", drv, err)
+		return
+	}
+	chk(err)
+	defer mosCleanup(drv)
 
 	m, err := Open(mosfile, 0)
 	chk(err)
+	defer m.Close()
 
 	res := fmt.Sprintf("%s features: 0x%x (", drv, m.Features())
 	res += fmt.Sprintf(" clone: %s ", bstr(m.CanClone()))
@@ -140,9 +200,6 @@ func testMosaicFeatures(t *testing.T, drv string) {
 	res += fmt.Sprintf(" migrate: %s ", bstr(m.CanMigrate()))
 	res += ")"
 	t.Logf(res)
-
-	m.Close()
-	dirCleanup()
 }
 
 func TestMosaicFeatures(t *testing.T) {
