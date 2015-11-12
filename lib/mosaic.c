@@ -81,6 +81,21 @@ static char *name_to_name(const char *name, char *buf, int blen)
 	return xstrdup(tail);
 }
 
+static void mosaic_free(mosaic_t m)
+{
+	if (m->m_ops) {
+		if (m->m_ops->release)
+			m->m_ops->release(m);
+		else
+			release_mosaic_subdir(m);
+		if (m->default_fs)
+			free(m->default_fs);
+	}
+	free_vol_map(m);
+	free(m->name);
+	free(m);
+}
+
 mosaic_t mosaic_open(const char *name, int open_flags)
 {
 	const char *cfg;
@@ -106,23 +121,17 @@ mosaic_t mosaic_open(const char *name, int open_flags)
 	return m;
 
 err:
-	mosaic_close(m);
+	mosaic_free(m);
 	return NULL;
 }
 
 void mosaic_close(mosaic_t m)
 {
-	if (m->m_ops) {
-		if (m->m_ops->release)
-			m->m_ops->release(m);
-		else
-			release_mosaic_subdir(m);
-		if (m->default_fs)
-			free(m->default_fs);
-	}
-	free_vol_map(m);
-	free(m->name);
-	free(m);
+	if (!m->m_ops)
+		return;
+
+	mosaic_free(m);
+	m->m_ops = NULL;
 }
 
 int mosaic_get_name(mosaic_t m, char *name_buf, int buf_len)
