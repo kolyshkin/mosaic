@@ -1,6 +1,6 @@
 function run_tests()
 {
-	local mname=$1
+	local mname="$MOS_FILE"
 
 	mkdir mmnt
 	mkdir tmnt

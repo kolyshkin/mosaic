@@ -1,6 +1,6 @@
 function run_tests()
 {
-	local mname=$1
+	local mname="$MOS_FILE"
 
 	if ! $moctl $mname info | grep '^features:' | fgrep -qw 'clone'; then
 		echo "* skipping clone test"

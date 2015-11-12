@@ -1,15 +1,13 @@
-echo "*** Testing plain driver"
-mkdir plain.dir
-cat > plain.mos << EOF
+prepare() {
+	mkdir plain.dir
+	cat > $MOS_FILE << EOF
 type: plain
 location: plain.dir
 volumeMap: \\([a-z]\\)\\([^_]*\\)_\\(.*\\) \\1/\\2/\\3
 EOF
+}
 
-run_tests "./plain.mos"
-
-rmdir plain.dir || fail "mosaic dir not empty"
-rm -f plain.mos
-
-echo "plain tests PASS"
-
+cleanup() {
+	rmdir plain.dir || fail "mosaic dir not empty"
+	rm -f $MOS_FILE
+}
